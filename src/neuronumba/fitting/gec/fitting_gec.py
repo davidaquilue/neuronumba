@@ -59,6 +59,13 @@ class COV_corr_sim_base(HasAttr):
 
 
 class Linear_COV_corr_sim(COV_corr_sim_base):
+    # 1. Add the attribute here so it's exposed to the user
+    lyapunov_method = Attr(
+        default="slycot",
+        doc="Method to solve the continuous Lyapunov equation (e.g., 'slycot', 'scipy')"
+    )
+
+    # 2. Remove lyapunov_method from the signature to strictly match the base class
     def _do_sim(self, SC):
         # Compute the model (linear hopf) for this iteration. We get:
         #   FC_sim: simulated functional connectivity matrix
@@ -67,7 +74,9 @@ class Linear_COV_corr_sim(COV_corr_sim_base):
         #   A: the Jacobian matrix
         A = self.model.get_jacobian(SC)
         Qn = self.model.get_noise_matrix(self.sigma, len(SC))
-        obs = LinearFC()
+
+        # 3. Reference the class attribute here
+        obs = LinearFC(lyap_method=self.lyapunov_method)
         result = obs.from_matrix(A, Qn)
         FC_sim = result['FC']
         COVsimtotal = result['CVth']
@@ -235,6 +244,8 @@ class FitGEC(HasAttr):
     last_run_convergence_err = None
     last_run_convergence_err_cov = None
     last_run_convergence_err_FC = None
+    last_run_corr_FC = None
+    last_run_corr_cov = None
     last_run_compute_time_sec = 0
 
     def last_run_debug_printing(self):
@@ -392,6 +403,8 @@ class FitGEC(HasAttr):
         self.last_run_convergence_err = np.zeros((self.max_iters))
         self.last_run_convergence_err_cov = np.zeros((self.max_iters))
         self.last_run_convergence_err_FC = np.zeros((self.max_iters))
+        self.last_run_corr_FC = np.zeros((self.max_iters))
+        self.last_run_corr_cov = np.zeros((self.max_iters))
 
         # Used to check if we are improving the error on convergency test
         olderror = None
@@ -416,6 +429,10 @@ class FitGEC(HasAttr):
             self.last_run_convergence_err_cov[i] = np.mean((scaled_COV_emp - scaled_COV_sim) ** 2)
             self.last_run_convergence_err[i] = self.last_run_convergence_err_FC[i] + self.last_run_convergence_err_cov[i]
 
+            # Compute Pearson correlations between flattened simulated and empirical
+            self.last_run_corr_FC[i] = np.corrcoef(FC_emp.flatten(), FC_sim.flatten())[0, 1]
+            self.last_run_corr_cov[i] = np.corrcoef(scaled_COV_emp.flatten(), scaled_COV_sim.flatten())[0, 1]
+
 
             # Check for convergence every "convergence_test_iters" times
             if i != 0 and (i % self.convergence_test_iters == 0):
@@ -436,6 +453,8 @@ class FitGEC(HasAttr):
         self.last_run_convergence_err = self.last_run_convergence_err[:i]
         self.last_run_convergence_err_cov = self.last_run_convergence_err_cov[:i]
         self.last_run_convergence_err_FC = self.last_run_convergence_err_FC[:i]
+        self.last_run_corr_FC = self.last_run_corr_FC[:i]
+        self.last_run_corr_cov = self.last_run_corr_cov[:i]
         self.last_run_reason_of_termination = f"GEC succesfully computed in {i} iterations. Reason for termination: {verbose_stop_reason}."
         self.last_run_num_of_iters = i
         self.last_run_compute_time_sec = time.time() - start_time
