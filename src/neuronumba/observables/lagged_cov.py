@@ -38,7 +38,7 @@ class TimeLaggedCOV(ObservableFMRI):
             for j in range(n_roi):
                 correlation = signal.correlate(tss[i, :] - tss[i, :].mean(), tss[j, :] - tss[j, :].mean(), mode='full')
                 lags = signal.correlation_lags(tss[i, :].shape[0], tss[j, :].shape[0], mode='full')
-                EC[i, j] = correlation[lags == timelag] / tss.shape[1]
+                EC[i, j] = float(np.squeeze(correlation[lags == timelag] / tss.shape[1]))
         return EC
 
     @staticmethod
